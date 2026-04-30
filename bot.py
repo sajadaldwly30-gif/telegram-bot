@@ -1,109 +1,65 @@
 import os
 import csv
-from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-load_dotenv()
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CSV_FILE = "universities.csv"
+# قراءة ملف الجامعات
+def load_data():
+    data = []
+    with open("universities.csv", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            data.append(row)
+    return data
 
+universities = load_data()
 
-def normalize(text):
-    return str(text).lower().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه")
-
-
-def load_universities():
-    with open(CSV_FILE, "r", encoding="utf-8-sig") as file:
-        return list(csv.DictReader(file))
-
-
-def search_answer(user_text):
-    user_text = normalize(user_text)
-
-    correction_words = ["غلط", "خطا", "خطأ", "مو صحيح", "معلوماتك غلط", "غير صحيح"]
-    if any(word in user_text for word in correction_words):
-        return (
-            "أعتذر إذا كانت المعلومة غير دقيقة تماماً.\n"
-            "قد تختلف الرسوم حسب آخر تحديثات الجامعة أو الجنسية أو السنة الدراسية.\n\n"
-            "للتأكيد الدقيق، تواصل ويانا بمكتب الأمل 📞"
-        )
-
-    rows = load_universities()
-    results = []
-
-    for row in rows:
-        combined = normalize(
-            f"{row.get('country','')} {row.get('university','')} {row.get('major','')}"
-        )
-
-        score = 0
-        for word in user_text.split():
-            if len(word) > 2 and word in combined:
-                score += 1
-
-        if score > 0:
-            results.append((score, row))
-
-    results.sort(key=lambda x: x[0], reverse=True)
-
-    if not results:
-        return (
-            "ما لقيت معلومة دقيقة حالياً عن هذا السؤال.\n"
-            "اكتب اسم الجامعة أو القسم حتى أبحث لك أسرع.\n\n"
-            "📞 للتأكيد تواصل ويانا بمكتب الأمل."
-        )
-
-    row = results[0][1]
-
-    university = row.get("university", "الجامعة")
-    country = row.get("country", "الدولة")
-    major = row.get("major", "التخصص")
-    available = row.get("available", "نعم")
-    fee = row.get("fee", "غير محدد")
-    currency = row.get("currency", "")
-    notes = row.get("notes", "")
-
-    if normalize(available) in ["لا", "no", "غير متوفر"]:
-        return (
-            f"حالياً تخصص {major} غير متوفر في {university} - {country}.\n\n"
-            f"📌 {notes}\n"
-            "📞 للتأكد من البدائل المتاحة تواصل ويانا بمكتب الأمل."
-        )
-
-    return (
-        f"نعم، تخصص {major} متوفر في {university} - {country}.\n"
-        f"القسط تقريباً {fee} {currency} سنوياً.\n\n"
-        f"📌 {notes}\n"
-        "قد تختلف التفاصيل حسب السنة الدراسية والتحديثات.\n\n"
-        "📞 للتأكيد تواصل ويانا بمكتب الأمل."
-    )
-
-
+# رسالة البداية
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "أهلاً بك في مكتب الأمل للدراسة خارج العراق 🎓\n"
-        "اكتب اسم الجامعة أو القسم حتى أبحث لك بسرعة."
+        "اكتب اسم الجامعة أو التخصص حتى أبحث لك بسرعة."
     )
 
-
+# الرد على الرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(search_answer(update.message.text))
+    user_msg = update.message.text.strip()
 
+    results = []
 
-def main():
-    if not TELEGRAM_TOKEN:
-        print("حط TELEGRAM_BOT_TOKEN داخل ملف .env")
-        return
+    for uni in universities:
+        if user_msg in uni["university"] or user_msg in uni["major"]:
+            results.append(uni)
 
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    if results:
+        reply = "📚 المعلومات المتوفرة:\n\n"
 
-    print("Bot is running...")
-    app.run_polling()
+        for r in results:
+            reply += f"""🏫 الجامعة: {r['university']}
+🌍 الدولة: {r['country']}
+🎓 التخصص: {r['major']}
+💰 القسط: {r['annual_fee']} {r['currency']}
+📝 ملاحظة: {r['notes']}
 
+"""
 
-if __name__ == "__main__":
-    main()
+        reply += "📞 للتأكيد والتقديم تواصل ويانا بمكتب الأمل."
+
+    else:
+        reply = (
+            "❌ ما لقيت معلومات دقيقة حالياً عن هذا السؤال.\n"
+            "اكتب اسم الجامعة أو التخصص حتى أبحث لك بشكل أدق.\n\n"
+            "📞 للتأكيد والتقديم تواصل ويانا بمكتب الأمل."
+        )
+
+    await update.message.reply_text(reply)
+
+# تشغيل البوت
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+app.run_polling()
