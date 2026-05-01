@@ -40,7 +40,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply += f"""🏫 الجامعة: {r['university']}
 🌍 الدولة: {r['country']}
 🎓 التخصص: {r['major']}
-💰 القسط: {r['fee']} {r['currency']}
+💰 القسط: {r['annual_fee']} {r['currency']}
 📝 ملاحظة: {r['notes']}
 
 """
