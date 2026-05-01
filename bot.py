@@ -35,6 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = clean(update.message.text)
+    words = user_msg.split()
 
     results = []
 
@@ -49,8 +50,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             clean(r.get("notes")),
         ])
 
-        if user_msg in searchable:
-            results.append(r)
+        score = 0
+        for word in words:
+            if word in searchable:
+                score += 1
+
+        if score >= 1:
+            results.append((score, r))
+
+    results.sort(key=lambda x: x[0], reverse=True)
+    results = [r for score, r in results]
 
     if results:
         reply = "📚 المعلومات المتوفرة:\n\n"
